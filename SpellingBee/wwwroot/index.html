@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spelling Bee</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #fef9e7;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      color: #f5a623;
+      margin-bottom: 0.25rem;
+      letter-spacing: -1px;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 2.5rem;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 2.5rem 3rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+      width: 420px;
+      max-width: 95vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .score-row {
+      display: flex;
+      gap: 2rem;
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    .score-row span strong {
+      color: #f5a623;
+      font-size: 1.1rem;
+    }
+
+    /* Timer ring */
+    .timer-wrap {
+      position: relative;
+      width: 90px;
+      height: 90px;
+    }
+
+    .timer-wrap svg {
+      transform: rotate(-90deg);
+    }
+
+    .timer-track { fill: none; stroke: #eee; stroke-width: 6; }
+    .timer-bar   { fill: none; stroke: #f5a623; stroke-width: 6;
+                   stroke-linecap: round;
+                   stroke-dasharray: 245;
+                   stroke-dashoffset: 0;
+                   transition: stroke-dashoffset 1s linear, stroke 0.5s; }
+    .timer-bar.urgent { stroke: #e74c3c; }
+
+    .timer-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #333;
+    }
+
+    .speak-btn {
+      background: #f5a623;
+      border: none;
+      border-radius: 50px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.65rem 1.8rem;
+      transition: background 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .speak-btn:hover { background: #e0961a; }
+    .speak-btn:active { transform: scale(0.97); }
+    .speak-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    .input-row {
+      display: flex;
+      gap: 0.5rem;
+      width: 100%;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      padding: 0.6rem 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus { border-color: #f5a623; }
+    input[type="text"]:disabled { background: #f8f8f8; color: #aaa; }
+
+    .submit-btn {
+      background: #2ecc71;
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.6rem 1.2rem;
+      transition: background 0.2s;
+    }
+
+    .submit-btn:hover { background: #27ae60; }
+    .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    .feedback {
+      min-height: 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .feedback.correct { color: #2ecc71; }
+    .feedback.wrong   { color: #e74c3c; }
+    .feedback.timeout { color: #e67e22; }
+
+    .next-btn {
+      background: #3498db;
+      border: none;
+      border-radius: 50px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.65rem 2rem;
+      transition: background 0.2s;
+      display: none;
+    }
+
+    .next-btn:hover { background: #2980b9; }
+
+    #state-idle .speak-btn { display: flex; }
+    #state-idle .next-btn  { display: none; }
+  </style>
+</head>
+<body>
+
+<h1>🐝 Spelling Bee</h1>
+<p class="subtitle">Listen carefully and type the word before time runs out!</p>
+
+<div class="card">
+  <div class="score-row">
+    <span>Score: <strong id="score">0</strong></span>
+    <span>Round: <strong id="round">1</strong></span>
+  </div>
+
+  <div class="timer-wrap">
+    <svg width="90" height="90" viewBox="0 0 90 90">
+      <circle class="timer-track" cx="45" cy="45" r="39"/>
+      <circle class="timer-bar"   cx="45" cy="45" r="39" id="timer-bar"/>
+    </svg>
+    <div class="timer-label" id="timer-label">–</div>
+  </div>
+
+  <button class="speak-btn" id="speak-btn" onclick="startRound()">
+    ▶ Play Word
+  </button>
+
+  <div class="input-row">
+    <input type="text" id="answer" placeholder="Type the word…"
+           disabled autocomplete="off" autocorrect="off"
+           autocapitalize="off" spellcheck="false"
+           onkeydown="if(event.key==='Enter') submitAnswer()" />
+    <button class="submit-btn" id="submit-btn" onclick="submitAnswer()" disabled>Go</button>
+  </div>
+
+  <div class="feedback" id="feedback"></div>
+
+  <button class="next-btn" id="next-btn" onclick="nextRound()">Next Word →</button>
+</div>
+
+<script>
+  const TIMER_SECONDS = 10;
+  const CIRCUMFERENCE = 2 * Math.PI * 39; // ≈ 245.04
+
+  let currentWord = '';
+  let timerInterval = null;
+  let secondsLeft = TIMER_SECONDS;
+  let score = 0;
+  let round = 1;
+  let roundActive = false;
+
+  const timerBar   = document.getElementById('timer-bar');
+  const timerLabel = document.getElementById('timer-label');
+  const answerEl   = document.getElementById('answer');
+  const feedbackEl = document.getElementById('feedback');
+  const speakBtn   = document.getElementById('speak-btn');
+  const submitBtn  = document.getElementById('submit-btn');
+  const nextBtn    = document.getElementById('next-btn');
+  const scoreEl    = document.getElementById('score');
+  const roundEl    = document.getElementById('round');
+
+  timerBar.style.strokeDasharray = CIRCUMFERENCE;
+  timerBar.style.strokeDashoffset = CIRCUMFERENCE;
+
+  async function startRound() {
+    feedbackEl.textContent = '';
+    feedbackEl.className = 'feedback';
+    answerEl.value = '';
+    nextBtn.style.display = 'none';
+    speakBtn.disabled = true;
+
+    const res = await fetch('/api/word');
+    const data = await res.json();
+    currentWord = data.word;
+
+    speakWord(currentWord);
+  }
+
+  function speakWord(word) {
+    if (!window.speechSynthesis) {
+      feedbackEl.textContent = 'Speech not supported in this browser.';
+      feedbackEl.className = 'feedback wrong';
+      speakBtn.disabled = false;
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.rate = 0.85;
+    utterance.pitch = 1;
+
+    utterance.onend = () => {
+      enableInput();
+      startTimer();
+    };
+
+    utterance.onerror = () => {
+      enableInput();
+      startTimer();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function enableInput() {
+    answerEl.disabled = false;
+    submitBtn.disabled = false;
+    answerEl.focus();
+    roundActive = true;
+  }
+
+  function startTimer() {
+    secondsLeft = TIMER_SECONDS;
+    updateTimerDisplay(secondsLeft);
+
+    timerInterval = setInterval(() => {
+      secondsLeft--;
+      updateTimerDisplay(secondsLeft);
+
+      if (secondsLeft <= 0) {
+        clearInterval(timerInterval);
+        if (roundActive) timeOut();
+      }
+    }, 1000);
+  }
+
+  function updateTimerDisplay(secs) {
+    timerLabel.textContent = secs;
+    const fraction = secs / TIMER_SECONDS;
+    timerBar.style.strokeDashoffset = CIRCUMFERENCE * (1 - fraction);
+    timerBar.classList.toggle('urgent', secs <= 3);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  function submitAnswer() {
+    if (!roundActive) return;
+    const typed = answerEl.value.trim().toLowerCase();
+    if (!typed) return;
+    endRound(typed);
+  }
+
+  function timeOut() {
+    roundActive = false;
+    disableInput();
+    feedbackEl.textContent = `⏰ Time's up! The word was "${currentWord}".`;
+    feedbackEl.className = 'feedback timeout';
+    showNext();
+  }
+
+  function endRound(typed) {
+    roundActive = false;
+    stopTimer();
+    disableInput();
+
+    if (typed === currentWord) {
+      score++;
+      scoreEl.textContent = score;
+      feedbackEl.textContent = `✓ Correct! Well done.`;
+      feedbackEl.className = 'feedback correct';
+    } else {
+      feedbackEl.textContent = `✗ Incorrect. The word was "${currentWord}".`;
+      feedbackEl.className = 'feedback wrong';
+    }
+
+    showNext();
+  }
+
+  function disableInput() {
+    answerEl.disabled = true;
+    submitBtn.disabled = true;
+  }
+
+  function showNext() {
+    nextBtn.style.display = 'inline-block';
+    speakBtn.disabled = false;
+  }
+
+  function nextRound() {
+    round++;
+    roundEl.textContent = round;
+    nextBtn.style.display = 'none';
+    timerLabel.textContent = '–';
+    timerBar.style.strokeDashoffset = CIRCUMFERENCE;
+    timerBar.classList.remove('urgent');
+    startRound();
+  }
+</script>
+</body>
+</html>
